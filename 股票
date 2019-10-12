@@ -1,0 +1,126 @@
+!pip install requests_cache quandl
+!conda install --yes -c conda-forge fbprophet # 等待时间约为 5 分钟
+!pip install http://labfile.oss.aliyuncs.com/courses/1145/pandas-datareader-master.zip
+!wget http://labfile.oss.aliyuncs.com/cour
+
+import quandl
+
+# 该 API KEY 仅限实验楼课程使用，其他用途请自行注册
+quandl.ApiConfig.api_key = 'DdXEs2xFciyUXrER9-a7'
+
+# 获取苹果公司股票数据
+quandl.get('WIKI/AAPL')
+
+# 忽略不必要的警告
+import warnings
+warnings.filterwarnings('ignore')
+
+import pandas_datareader.data as web
+import pandas as pd
+import datetime
+
+
+start = datetime.datetime(2018, 1, 1) # 指定开始时间
+end = datetime.datetime.now() # 指定结束时间
+
+# 获取股票交易代码为 000001.SZ 的数据
+SZ000001 = web.DataReader('000001.SZ', 'yahoo', start, end)
+SZ000001
+
+import requests_cache
+
+
+# 设定缓存及过期时间
+expire_after = datetime.timedelta(days=3)
+session = requests_cache.CachedSession(cache_name='cache', backend='sqlite', expire_after=expire_after)
+
+end = datetime.datetime.now() # 指定结束时间
+start = end - 10 * datetime.timedelta(days=365) # 10 年前
+
+# 获取股票交易代码为 000001.SZ 的数据
+df = web.DataReader('000001.SZ', 'yahoo', start, end, session=session)
+df
+
+df.isnull().values.sum()
+
+from matplotlib import pyplot as plt
+%matplotlib inline
+
+
+close = df.Close
+close.plot(figsize=(16, 9))
+
+# 通过 plt.style.available 查看全部绘图样式，推荐绘图样式：
+
+# dark_background
+# seaborn-whitegrid
+# fivethirtyeight
+
+plt.style.use('seaborn-whitegrid')
+
+df.plot(figsize=(16, 9))
+
+df_min_max = (df - df.min()) / (df.max() - df.min())
+df_min_max.plot(figsize=(16, 9))
+
+# 绘制 K 线图
+from mpl_finance import candlestick2_ohlc
+
+
+year_2018 = df['2018-01-01':'2018-07-31']
+
+fig, ax = plt.subplots(figsize=(16,9))
+candlestick2_ohlc(ax, year_2018.Open, year_2018.High, year_2018.Low, year_2018.Close, width=.5, alpha =.6)
+
+import numpy as np
+
+
+year_2018_close = year_2018.Close
+
+log_change = np.log(year_2018_close) - np.log(year_2018_close.shift(1))
+
+fig, ax = plt.subplots(figsize=(16,9))
+ax.plot(log_change, ".-")
+ax.axhline(y=0, color='red', lw=2)
+# 绘制当日于上日相对涨跌柱形图。
+fig, ax = plt.subplots(figsize=(30,9))
+log_change.plot(kind='bar')
+
+(log_change < 0).sum() / len(log_change)
+
+from mpl_finance import candlestick2_ohlc
+
+
+short_rolling = year_2018_close.rolling(window=5).mean()
+long_rolling = year_2018_close.rolling(window=15).mean()
+
+fig, ax = plt.subplots(figsize=(16,9))
+ax.plot(year_2018_close.index, year_2018_close, label='year_2018_close')
+ax.plot(short_rolling.index, short_rolling, label='5 days rolling')
+ax.plot(long_rolling.index, long_rolling, label='20 days rolling')
+ax.set_xlabel('Date')
+ax.set_ylabel('Closing price (¥)')
+ax.legend(fontsize='large')
+
+而长期和短期变化曲线的交点，往往就是我们购入或卖出股票的时间点。如果我们是短期投资者，就可以建立一个交易策略。
+
+当短期变化曲线从上方交与长期变化曲线，说明股票短期看跌，则卖出。
+当短期变化曲线从下方交与长期变化曲线，说明股票长期看涨，则买入。
+fig, ax = plt.subplots(figsize=(16,9))
+
+short_long = np.sign(short_rolling - long_rolling)
+buy_sell = np.sign(short_long - short_long.shift(1))
+buy_sell.plot(ax=ax)
+ax.axhline(y=0, color='red', lw=2)
+
+那么，适合买入时间点：
+
+buy_sell[buy_sell == 1]
+
+适合卖出时间点：
+
+buy_sell[buy_sell == -1]
+
+可以选择相邻的两个时间点计算交易收益。
+
+year_2018_close['2018-07-16'] - year_2018_close['2018-07-13']
