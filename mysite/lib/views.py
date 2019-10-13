@@ -21,6 +21,11 @@ def addBook(request):
     #???
     return HttpResponseRedirect(reverse('lib:detail'))
 
+def deleteBook(request, book_id):
+    bookID = book_id
+    Book.objects.filter(id=bookID).delete()
+    return HttpResponseRedirect(reverse('lib:detail'))
+
 
 def detail(request):
     book_list = Book.objects.order_by('-pub_date')[:3]
